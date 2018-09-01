@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+
 import numpy as np
 
 from PIL import Image
@@ -98,39 +99,50 @@ def plot_bbox(img, origin, bboxes, scores=None, labels=None, thresh=0.5,
     return img
 
 def show_frame():
-    global color
-    global detect
-    global seg
+    global operators_val
     global display
     global window
 
     ret, frame = cap.read()
+#    frame = cv2.imread('ade20k_example.jpg')
+    frame = cv2.resize(frame, (0,0), fx=0.9, fy=0.9)
 
     frame = cv2.flip(frame, 1)
-    if int(seg.get()) == 1:
+    if int(operators_val.get()) == 0:
+        pass
+    elif int(operators_val.get()) == 1:
         x, img = load_test(frame, short=200)
         output = seg_net.demo(x)
         predict = mx.nd.squeeze(mx.nd.argmax(output, 1)).asnumpy()
+        print(predict.shape)
+
         mask = get_color_pallete(predict, 'pascal_voc')
         img = np.asarray(mask)
-
+        print(img.shape)
 
         mask = cv2.resize(img, (frame.shape[1], frame.shape[0]))
         frame = frame.astype(np.float32) + mask.astype(np.float32)
         frame[frame > 255] = 255
         frame = frame.astype(np.uint8)
-
-
-
-
-    if int(detect.get()) == 1:
+    elif int(operators_val.get()) == 2:
         x, img = load_test(frame, short=200)
         class_IDs, scores, bounding_boxs = net(x)
         frame = plot_bbox(frame, img, bounding_boxs[0], scores[0],
                         class_IDs[0], class_names=net.classes)
-
-    if int(color.get()) == 1:
+    elif int(operators_val.get()) == 3:
         frame = 255 - frame
+    elif int(operators_val.get()) == 4:
+        
+        model = gluoncv.model_zoo.get_model('psp_resnet50_ade', pretrained=True)
+        img, _ = load_test(frame, 150)
+        output = model.demo(img)
+        predict = mx.nd.squeeze(mx.nd.argmax(output, 1)).asnumpy()
+        mask = get_color_pallete(predict, 'ade20k')
+        img = np.asarray(mask.convert('RGB'))
+        mask = cv2.resize(img, (frame.shape[1], frame.shape[0]))
+        frame = frame.astype(np.float32) + mask.astype(np.float32)
+        frame[frame > 255] = 255
+        frame = frame.astype(np.uint8)
 
     cv2image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
     img = Image.fromarray(cv2image)
@@ -154,22 +166,19 @@ def main():
     window.config(background="#FFFFFF")
 
     display = tk.Label(window)
-    display.grid(row=1, column=0, padx=10, pady=2)  #Display 1
+    display.pack()
 
-    color = tk.IntVar()
-    c1 = tk.Checkbutton(window, text='color', variable=color, 
-            onvalue=1, offvalue=0, command=empty)
-    c1.grid(row=2, column=0, padx=10, pady=10)  
+    f = tk.Frame(window).pack()
+    
 
-    detect = tk.IntVar()
-    c1 = tk.Checkbutton(window, text='detect', variable=detect, 
-            onvalue=1, offvalue=0, command=empty)
-    c1.grid(row=3, column=0, padx=10, pady=10)  
+    operators = ['origin', 'segment', 'detect', 'color', 'scene']
+    global operators_val 
+    operators_val = tk.IntVar()
 
-    seg = tk.IntVar()
-    c1 = tk.Checkbutton(window, text='segment', variable=seg, 
-            onvalue=1, offvalue=0, command=empty)
-    c1.grid(row=4, column=0, padx=10, pady=10)  
+    for i, operator in enumerate(operators):
+        c = tk.Radiobutton(f, text=operator, value=i, 
+                variable=operators_val, command=empty)
+        c.pack(side='left', padx=10, pady=10)
 
 
     show_frame() 
